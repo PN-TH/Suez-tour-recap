@@ -26,11 +26,12 @@ import {
 } from "../hooks/useStatus";
 import Autocomplete from "@mui/material/Autocomplete";
 import { CSVLink, CSVDownload } from "react-csv";
+import ReactExport from "react-export-excel";
 
 const StyledTableCell = withStyles((theme) =>
   createStyles({
     head: {
-      backgroundColor: "#376FD0",
+      backgroundColor: "#2184db",
       color: theme.palette.common.white,
     },
     body: {
@@ -74,6 +75,9 @@ const useStyles = makeStyles({
 });
 
 export default function CustomizedTables() {
+  const ExcelFile = ReactExport.ExcelFile;
+  const ExcelSheet = ReactExport.ExcelFile.ExcelSheet;
+  const ExcelColumn = ReactExport.ExcelFile.ExcelColumn;
   const classes = useStyles();
   const [IDs, setIDs] = useState([]);
   const [tourneeId, setTourneeId] = useState("");
@@ -82,12 +86,16 @@ export default function CustomizedTables() {
   const [data, setData] = useState([]);
   const [error, setError] = useState(false);
   const [csvDetection, setCsvDetection] = useState([]);
-  const a = [];
-
-  const csvData = [
-    { firstname: "Ahmed", lastname: "Tomi", email: "ah@smthing.co.com" },
-    { firstname: "Raed", lastname: "Labes", email: "rl@smthing.co.com" },
-    { firstname: "Yezzi", lastname: "Min l3b", email: "ymin@cocococo.com" },
+  const [csvInfo, setCsvInfo] = useState([]);
+  const headers = [
+    { label: "ID DAG", key: "sensorid" },
+    { label: "Type DAG", key: "sensorType" },
+    { label: "Latitude", key: "latitude" },
+    { label: "Longitude", key: "longitude" },
+    { label: "Qualité", key: "quality" },
+    { label: "Remplissage", key: "filling" },
+    { label: "Anomalie", key: "anomaly" },
+    { label: "Date", key: "date" },
   ];
 
   const pad = (d) => {
@@ -109,19 +117,26 @@ export default function CustomizedTables() {
       .get(`${process.env.REACT_APP_API_URL}/airbus/getAllTournee`, {
         headers: { appname: "webapp" },
       })
-      .then((res) => setIDs(res.data));
+      .then((res) => {
+        setIDs(res.data);
+      });
   };
 
   const transformID = (data) => {
-    const date = new Date(data.debut).toLocaleDateString();
-    const hours = new Date(data.debut).toLocaleTimeString();
-    const weight = data.poids;
-    const ripper = data.equipe && data.equipe[0].name.replace(/\s+/g, "");
-    const driver = data.equipe && data.equipe[1].name.replace(/\s+/g, "");
-    /*     console.log(data.detections[0].idDocument); */
-    /* const type = data.detections[0].idDocument.samples[0].sensorType; */
-    const result = `${date}_${hours}_${weight}kg_${driver}_${ripper}`;
-    return result;
+    if (data.equipe) {
+      const date = new Date(data.debut).toLocaleDateString().split(",");
+      const hours = new Date(data.debut).toLocaleTimeString();
+      const weight = data.poids;
+      /*  const ripper =
+        data.equipe && data.equipe[0].name
+          ? data.equipe[0].name.replace(/\s+/g, "")
+          : ""; */
+      /*  const driver = data.equipe && data.equipe[1].name.replace(/\s+/g, ""); */
+      /*     console.log(data.detections[0].idDocument); */
+      /* const type = data.detections[0].idDocument.samples[0].sensorType; */
+      const result = `${date}_${hours}_${weight}kg`;
+      return result;
+    }
   };
 
   const getTournee = (id) => {
@@ -137,20 +152,20 @@ export default function CustomizedTables() {
         setDetection(res.data[0].detections);
         setTeam(res.data[0].equipe);
         setData(res.data[0]);
-        /*       console.log(res.data); */
-        /*         const a = res.data[0].detections.forEach((el) => {
-          return {
-            sensorid: el.idDocument.sensorid,
-            sensorType: el.idDocument.sensorType,
-            latitude: el.idDocument.samples.latitude,
-            longitude: el.idDocument.samples.longitude,
-            quality: el.idDocument.samples.quality,
-            filling: el.idDocument.samples.filling,
-            anomaly: el.idDocument.samples.anomaly,
-          };
-        });
-        setXlsxDetection(a); */
+        console.log(res.data);
         let csv = [];
+
+        let info = [
+          {
+            id: res.data[0]._id,
+            nbBacs: res.data[0].detections.length,
+            debut: new Date(res.data[0].debut).toLocaleString(),
+            fin: new Date(res.data[0].fin).toLocaleString(),
+            poids: `${res.data[0].poids} kg`,
+            duree: calculateDuration(res.data[0].debut, res.data[0].fin),
+          },
+        ];
+
         for (let i = 0; i < res.data[0].detections.length; i++) {
           csv.push({
             sensorid: res.data[0].detections[i].idDocument.sensorid,
@@ -160,12 +175,16 @@ export default function CustomizedTables() {
             quality: res.data[0].detections[i].idDocument.samples.quality,
             filling: res.data[0].detections[i].idDocument.samples.filling,
             anomaly: res.data[0].detections[i].idDocument.samples.anomaly,
-            date: new Date(
-              res.data[0].detections[i].idDocument.samples.date
-            ).toLocaleString(),
+            date: new Date(res.data[0].detections[i].idDocument.samples.date)
+              .toLocaleString()
+              .split(",")
+              .join(""),
           });
         }
+
+        setCsvInfo((csvInfo) => info);
         setCsvDetection((csvDetection) => csv);
+        console.log(csv);
       })
 
       .catch((err) => setError(true));
@@ -176,7 +195,14 @@ export default function CustomizedTables() {
     getTournee(tourneeId);
     getIDTours();
   }, [tourneeId]);
-  const xsls = () => {};
+
+  var dataSet2 = [
+    {
+      name: "Johnson",
+      total: 25,
+      remainig: 16,
+    },
+  ];
 
   return (
     <Container>
@@ -253,13 +279,13 @@ export default function CustomizedTables() {
           <Table className={classes.table} aria-label="customized table">
             <TableHead>
               <TableRow>
-                <StyledTableCell align="left">sensorId</StyledTableCell>
-                <StyledTableCell align="left">SensorType</StyledTableCell>
+                <StyledTableCell align="left">ID DAG</StyledTableCell>
+                <StyledTableCell align="left">Type DAG</StyledTableCell>
                 <StyledTableCell align="left">Latitude</StyledTableCell>
                 <StyledTableCell align="left">Longitude</StyledTableCell>
-                <StyledTableCell align="left">Quality</StyledTableCell>
-                <StyledTableCell align="left">Filling</StyledTableCell>
-                <StyledTableCell align="left">Anomaly</StyledTableCell>
+                <StyledTableCell align="left">Qualité</StyledTableCell>
+                <StyledTableCell align="left">Remplissage</StyledTableCell>
+                <StyledTableCell align="left">Anomalie</StyledTableCell>
                 <StyledTableCell align="left">Date</StyledTableCell>
               </TableRow>
             </TableHead>
@@ -305,9 +331,62 @@ export default function CustomizedTables() {
       ) : (
         ""
       )}
-      <CSVLink data={csvDetection} filename={`${transformID(data)}.csv`}>
-        Exporter au format CSV
+      <CSVLink
+        data={csvDetection}
+        headers={headers}
+        filename={`${transformID(data)}.csv`}
+      >
+        <Button
+          style={{
+            textDecoration: "none",
+            backgroundColor: "#2184db",
+            marginTop: 20,
+            marginBottom: 20,
+            marginRight: 10,
+            color: "white",
+          }}
+          color="primary"
+        >
+          Exporter au format CSV
+        </Button>
       </CSVLink>
+      <ExcelFile
+        filename={`${transformID(data)}`}
+        element={
+          <Button
+            style={{
+              textDecoration: "none",
+              backgroundColor: "#2184db",
+              marginTop: 20,
+              marginBottom: 20,
+              color: "white",
+              marginLeft: 10,
+            }}
+            color="primary"
+          >
+            Exporter au format XLSX
+          </Button>
+        }
+      >
+        <ExcelSheet data={csvDetection} name="Detections">
+          <ExcelColumn label="ID DAG" value="sensorid" />
+          <ExcelColumn label="Type DAG" value="sensorType" />
+          <ExcelColumn label="latitude" value="latitude" />
+          <ExcelColumn label="longitude" value="longitude" />
+          <ExcelColumn label="Qualité" value="quality" />
+          <ExcelColumn label="Remplissage" value="filling" />
+          <ExcelColumn label="Anomalie" value="anomaly" />
+          <ExcelColumn label="Date" value="date" />
+        </ExcelSheet>
+        <ExcelSheet data={csvInfo} name="Infos">
+          <ExcelColumn label="ID Tournée" value="id" />
+          <ExcelColumn label="Nb Bacs" value="nbBacs" />
+          <ExcelColumn label="Début" value="debut" />
+          <ExcelColumn label="Fin" value="fin" />
+          <ExcelColumn label="Poids" value="poids" />
+          <ExcelColumn label="Durée" value="duree" />
+        </ExcelSheet>
+      </ExcelFile>
     </Container>
   );
 }
