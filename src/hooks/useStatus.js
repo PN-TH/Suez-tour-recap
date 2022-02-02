@@ -1,5 +1,4 @@
 import CloseIcon from "@material-ui/icons/Close";
-import CheckIcon from "@material-ui/icons/Check";
 export const useQualityStatus = (num) => {
   switch (num) {
     case 1:
@@ -158,10 +157,35 @@ export const useFillingRateStatus = (num) => {
   }
 };
 
-// export const useAnomalyStatus = isAnomaly => {
-//   return isAnomaly ? 'close-outline' : 'checkmark-outline';
-// };
-
 export const useAnomlyStatus = (isState) => {
   return isState ? <CloseIcon /> : <></>;
+};
+
+export const useQualityExportStatus = (num) => {
+  switch (num) {
+    case 1:
+      /*       return { color: "#00b050", title: "C" }; */
+      return "CONFORME";
+    case 2:
+      return "NC MINEURE";
+    case 4:
+      return "NC MAJEURE";
+    default:
+      return "";
+  }
+};
+
+export const useFillingRateExportStatus = (num) => {
+  switch (num) {
+    case 1:
+      return "25 %";
+    case 2:
+      return "50 %";
+    case 4:
+      return "100 %";
+    case 8:
+      return "120 %";
+    default:
+      return "";
+  }
 };

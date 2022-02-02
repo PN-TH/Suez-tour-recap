@@ -1,13 +1,10 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/rules-of-hooks */
+
 import { useEffect, useState } from "react";
-import {
-  withStyles,
-  Theme,
-  createStyles,
-  makeStyles,
-} from "@material-ui/core/styles";
+import { withStyles, createStyles, makeStyles } from "@material-ui/core/styles";
 import axios from "axios";
-import { Container, Typography } from "@material-ui/core";
+import { Container } from "@material-ui/core";
 import {
   Button,
   TextField,
@@ -23,9 +20,11 @@ import {
   useAnomlyStatus,
   useFillingRateStatus,
   useQualityStatus,
+  useQualityExportStatus,
+  useFillingRateExportStatus,
 } from "../hooks/useStatus";
 import Autocomplete from "@mui/material/Autocomplete";
-import { CSVLink, CSVDownload } from "react-csv";
+import { CSVLink } from "react-csv";
 import ReactExport from "react-export-excel";
 
 const StyledTableCell = withStyles((theme) =>
@@ -87,15 +86,27 @@ export default function CustomizedTables() {
   const [error, setError] = useState(false);
   const [csvDetection, setCsvDetection] = useState([]);
   const [csvInfo, setCsvInfo] = useState([]);
+  const [inProgress, setInProgress] = useState(false);
   const headers = [
-    { label: "ID DAG", key: "sensorid" },
-    { label: "Type DAG", key: "sensorType" },
-    { label: "Latitude", key: "latitude" },
-    { label: "Longitude", key: "longitude" },
-    { label: "Qualité", key: "quality" },
-    { label: "Remplissage", key: "filling" },
-    { label: "Anomalie", key: "anomaly" },
-    { label: "Date", key: "date" },
+    { label: "DATE ET HEURE", key: "date" },
+    { label: "Type de TAG", key: "typeTag" },
+    { label: "SOURCE DE DONNEES", key: "sourceDonnees" },
+    { label: "SITE 1", key: "site2" },
+    { label: "SITE 2", key: "site1" },
+    { label: "CLIENT", key: "client" },
+    { label: "PROVENANCE", key: "provenance" },
+    { label: "BATIMENT", key: "batiment" },
+    { label: "PRODUCTEUR", key: "producteur" },
+    { label: "NOM DU DECHET", key: "nomDechet" },
+    { label: "CATEGORIE DE DECHET", key: "categorieDechet" },
+    { label: "TYPE DE CONTENANT", key: "typeContenant" },
+    { label: "VOLUME DE CONTENANT", key: "volumeContenant" },
+    { label: "TOURNEE", key: "tournee" },
+    { label: "QUALITE DE TRI", key: "qualiteTri" },
+    { label: "TAUX DE REMPLISSAGE", key: "tauxRemplissage" },
+    { label: "ANOMALIE", key: "anomaly" },
+    { label: "LATITUDE", key: "latitude" },
+    { label: "LONGITUDE", key: "longitude" },
   ];
 
   const pad = (d) => {
@@ -126,15 +137,11 @@ export default function CustomizedTables() {
     if (data.equipe) {
       const date = new Date(data.debut).toLocaleDateString().split(",");
       const hours = new Date(data.debut).toLocaleTimeString();
-      const weight = data.poids;
-      /*  const ripper =
-        data.equipe && data.equipe[0].name
-          ? data.equipe[0].name.replace(/\s+/g, "")
-          : ""; */
-      /*  const driver = data.equipe && data.equipe[1].name.replace(/\s+/g, ""); */
-      /*     console.log(data.detections[0].idDocument); */
-      /* const type = data.detections[0].idDocument.samples[0].sensorType; */
-      const result = `${date}_${hours}_${weight}kg`;
+      const weight = data.poids ? data.poids : "";
+
+      const result = `${date}_${hours}${weight && "_"}${weight}${
+        weight && "kg"
+      }`;
       return result;
     }
   };
@@ -142,73 +149,91 @@ export default function CustomizedTables() {
   const getTournee = (id) => {
     axios
       .get(
-        `${process.env.REACT_APP_API_URL}/airbus/getTourneeInfos?tourneeId=${id}`,
+        `${process.env.REACT_APP_API_URL}/airbus/getTourneeInfos?tourneeId=${
+          id ? id : ""
+        }`,
         {
           headers: { appname: "webapp" },
         }
       )
       .then((res) => {
+        if (res.data[0].fin === null && data.debut !== null) {
+          setInProgress(true);
+        } else {
+          setInProgress(false);
+        }
         setError(false);
         setDetection(res.data[0].detections);
         setTeam(res.data[0].equipe);
         setData(res.data[0]);
-        console.log(res.data);
-        let csv = [];
-
-        let info = [
-          {
-            id: res.data[0]._id,
-            nbBacs: res.data[0].detections.length,
-            debut: new Date(res.data[0].debut).toLocaleString(),
-            fin: new Date(res.data[0].fin).toLocaleString(),
-            poids: `${res.data[0].poids} kg`,
-            duree: calculateDuration(res.data[0].debut, res.data[0].fin),
-          },
-        ];
-
-        for (let i = 0; i < res.data[0].detections.length; i++) {
-          csv.push({
-            sensorid: res.data[0].detections[i].idDocument.sensorid,
-            sensorType: res.data[0].detections[i].idDocument.sensorType,
-            latitude: res.data[0].detections[i].idDocument.samples.latitude,
-            longitude: res.data[0].detections[i].idDocument.samples.longitude,
-            quality: res.data[0].detections[i].idDocument.samples.quality,
-            filling: res.data[0].detections[i].idDocument.samples.filling,
-            anomaly: res.data[0].detections[i].idDocument.samples.anomaly,
-            date: new Date(res.data[0].detections[i].idDocument.samples.date)
+        console.log(res.data[0]);
+        let info = [];
+        for (let item of res.data[0].detections) {
+          info.push({
+            date: new Date(item.samples[0]["date"])
               .toLocaleString()
               .split(",")
               .join(""),
+            tagContenant: item["DAG RFID"],
+            typeTag: item["Type de TAG"],
+            sourceDonnees: item["Source de donnée"],
+            site1: item["Site 1"],
+            site2: item["Site 2"],
+            client: item["Client"],
+            provenance: item["Provenance"],
+            batiment: item["Bâtiment"],
+            producteur: "",
+            nomDechet: item["Type de déchets"],
+            categorieDechet: item["Type de déchet"],
+            typeContenant: item["Contenant"],
+            volumeContenant: "",
+            tournee: item["Tournée"],
+            qualiteTri: useQualityExportStatus(
+              parseInt(item.samples[0]["quality"])
+            ),
+            tauxRemplissage: useFillingRateExportStatus(
+              parseInt(item.samples[0]["filling"])
+            ),
+            anomaly:
+              item.samples["anomaly"] && item.samples[0]["anomaly"] !== "null"
+                ? item.samples["anomaly"]
+                : "",
+            latitude: item.samples[0]["latitude"],
+            longitude: item.samples[0]["longitude"],
           });
         }
 
         setCsvInfo((csvInfo) => info);
-        setCsvDetection((csvDetection) => csv);
-        console.log(csv);
+        setCsvDetection((csvDetection) => info);
       })
 
-      .catch((err) => setError(true));
+      .catch((err) => {
+        setError(true);
+        console.log(err);
+        console.log(error);
+      });
   };
 
   useEffect(() => {
-    setError(false);
-    getTournee(tourneeId);
     getIDTours();
+    setError(false);
+    getTournee(tourneeId ? tourneeId : "");
   }, [tourneeId]);
-
-  var dataSet2 = [
-    {
-      name: "Johnson",
-      total: 25,
-      remainig: 16,
-    },
-  ];
 
   return (
     <Container>
       <div>
-        <h3>Tournée: {transformID(data)}</h3>
-        <h3>Nombre de bacs: {detection.length}</h3>
+        {data.detections && data.fin !== null ? (
+          <h3>
+            Tournée: <i style={{ fontSize: 16 }}>{transformID(data)}</i>
+          </h3>
+        ) : (
+          <h3>
+            Tournée: <i style={{ fontSize: 16 }}>En cours...</i>
+          </h3>
+        )}
+        {!inProgress && <h4>Nombre de bacs: {detection.length}</h4>}
+
         {team.map((el) => (
           <div key={el._id}>
             {el.role === "Chauffeur" && (
@@ -223,8 +248,6 @@ export default function CustomizedTables() {
                 {el.name}
               </p>
             )}
-            {/*             <p>aaaa</p>
-            <p>bbbb</p> */}
           </div>
         ))}
         <div className={classes.displayInfo}>
@@ -232,33 +255,43 @@ export default function CustomizedTables() {
             <strong>Date de début: </strong>
             {new Date(data.debut).toLocaleString()}
           </p>
-          <p>
-            <strong>Date de fin:</strong> {new Date(data.fin).toLocaleString()}
-          </p>
+          {data.fin !== null && (
+            <p>
+              <strong>Date de fin:</strong>{" "}
+              {new Date(data.fin).toLocaleString()}
+            </p>
+          )}
         </div>
         <div className={classes.displayInfo}>
-          <p>
-            <strong>Poids:</strong> {data.poids} kg{" "}
-          </p>
-          <p>
-            <strong>Durée: </strong>
-            {calculateDuration(data.debut, data.fin)}
-          </p>
+          {data.poids !== null && (
+            <p>
+              <strong>Poids:</strong> {data.poids} kg{" "}
+            </p>
+          )}
+
+          {data.fin !== null && (
+            <p>
+              <strong>Durée: </strong>
+              {calculateDuration(data.debut, data.fin)}
+            </p>
+          )}
         </div>
         <div className={classes.inputContainer}>
           <Autocomplete
             disablePortal
+            isOptionEqualToValue={(option, value) => option._id === value._id}
             onChange={(e, newVal) => {
-              setTourneeId(newVal);
-              getTournee(newVal._id);
+              if (newVal) {
+                getTournee(newVal._id);
+                setTourneeId(newVal._id);
+              } else {
+                setTourneeId(null);
+              }
             }}
             options={IDs}
             getOptionLabel={(option) =>
               new Date(option.debut).toLocaleString() + " " + option._id
             }
-            /*             renderOption={IDs.map((props, option) => (
-              <div {...props}>{option.debut}</div>
-            ))} */
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -268,14 +301,83 @@ export default function CustomizedTables() {
                 margin="normal"
                 fullWidth
                 autoFocus
-                value={tourneeId}
               />
             )}
           />
         </div>
       </div>
       <div>
-        <TableContainer component={Paper}>
+        <CSVLink
+          data={csvDetection}
+          headers={headers}
+          filename={`${transformID(data)}.csv`}
+        >
+          <Button
+            style={{
+              textDecoration: "none",
+              backgroundColor: "#2184db",
+              marginTop: 20,
+              marginBottom: 20,
+              marginRight: 10,
+              color: "white",
+            }}
+            color="primary"
+          >
+            Exporter au format CSV
+          </Button>
+        </CSVLink>
+        <ExcelFile
+          filename={`${transformID(data)}`}
+          element={
+            <Button
+              style={{
+                textDecoration: "none",
+                backgroundColor: "#2184db",
+                marginTop: 20,
+                marginBottom: 20,
+                color: "white",
+                marginLeft: 10,
+              }}
+              color="primary"
+            >
+              Exporter au format XLSX
+            </Button>
+          }
+        >
+          <ExcelSheet data={csvInfo} name="DETECTION">
+            <ExcelColumn label="DATE ET HEURE" value="date" />
+            <ExcelColumn label="TAG CONTENANT" value="tagContenant" />
+            <ExcelColumn label="TYPE DE TAG" value="typeTag" />
+            <ExcelColumn label="SOURCE DE DONNEES" value="sourceDonnees" />
+            <ExcelColumn label="SITE 1" value="site1" />
+            <ExcelColumn label="SITE 2" value="site2" />
+            <ExcelColumn label="CLIENT" value="client" />
+            <ExcelColumn label="PROVENANCE" value="provenance" />
+            <ExcelColumn label="BATIMENT" value="batiment" />
+            <ExcelColumn label="PRODUCTEUR" value="producteur" />
+            <ExcelColumn label="NOM DU DECHET" value="nomDechet" />
+            <ExcelColumn label="CATEGORIE DE DECHET" value="categorieDechet" />
+            <ExcelColumn label="TYPE DE CONTENANT" value="typeContenant" />
+            <ExcelColumn label="VOLUME DE CONTENANT" value="volumeContenant" />
+            <ExcelColumn label="TOURNEE" value="tournee" />
+            <ExcelColumn label="QUALITE DE TRI" value="qualiteTri" />
+            <ExcelColumn label="TAUX DE REMPLISSAGE" value="tauxRemplissage" />
+            <ExcelColumn label="ANOMALIE" value="anomaly" />
+            <ExcelColumn label="LATITUDE" value="latitude" />
+            <ExcelColumn label="LONGITUDE" value="longitude" />
+          </ExcelSheet>
+          <ExcelSheet data={csvDetection} name="TOURNEE">
+            <ExcelColumn label="ID DAG" value="sensorid" />
+            <ExcelColumn label="Type DAG" value="sensorType" />
+            <ExcelColumn label="latitude" value="latitude" />
+            <ExcelColumn label="longitude" value="longitude" />
+            <ExcelColumn label="Qualité" value="quality" />
+            <ExcelColumn label="Remplissage" value="filling" />
+            <ExcelColumn label="Anomalie" value="anomaly" />
+            <ExcelColumn label="Date" value="date" />
+          </ExcelSheet>
+        </ExcelFile>
+        <TableContainer component={Paper} style={{ marginBottom: 100 }}>
           <Table className={classes.table} aria-label="customized table">
             <TableHead>
               <TableRow>
@@ -290,33 +392,31 @@ export default function CustomizedTables() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {detection.map((row) => (
-                <StyledTableRow key={row._id}>
+              {detection.map((row, i) => (
+                <StyledTableRow key={i}>
                   <StyledTableCell component="th" scope="row">
-                    {row.idDocument.sensorid}
+                    {row.sensorid}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {row.idDocument.sensorType}
+                    {row.sensorType}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {row.idDocument.samples && row.idDocument.samples.latitude}
+                    {row.samples[0].latitude}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {row.idDocument.samples && row.idDocument.samples.longitude}
+                    {row.samples[0].longitude}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {useQualityStatus(parseInt(row.idDocument.samples.quality))}
+                    {useQualityStatus(parseInt(row.samples[0].quality))}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {useFillingRateStatus(
-                      parseInt(row.idDocument.samples.filling)
-                    )}
+                    {useFillingRateStatus(parseInt(row.samples[0].filling))}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {useAnomlyStatus(parseInt(row.idDocument.samples.anomaly))}
+                    {useAnomlyStatus(parseInt(row.samples[0].anomaly))}
                   </StyledTableCell>
                   <StyledTableCell component="th" scope="row">
-                    {new Date(row.idDocument.samples.date).toLocaleString()}
+                    {new Date(row.samples[0].date).toLocaleString()}
                   </StyledTableCell>
                 </StyledTableRow>
               ))}
@@ -324,69 +424,16 @@ export default function CustomizedTables() {
           </Table>
         </TableContainer>
       </div>
-      {detection.length < 1 && !error ? (
+      {!detection.length === 0 && !inProgress && (
         <p style={{ display: "flex", justifyContent: "center" }}>
           Aucune data pour cette tournée
         </p>
-      ) : (
-        ""
       )}
-      <CSVLink
-        data={csvDetection}
-        headers={headers}
-        filename={`${transformID(data)}.csv`}
-      >
-        <Button
-          style={{
-            textDecoration: "none",
-            backgroundColor: "#2184db",
-            marginTop: 20,
-            marginBottom: 20,
-            marginRight: 10,
-            color: "white",
-          }}
-          color="primary"
-        >
-          Exporter au format CSV
-        </Button>
-      </CSVLink>
-      <ExcelFile
-        filename={`${transformID(data)}`}
-        element={
-          <Button
-            style={{
-              textDecoration: "none",
-              backgroundColor: "#2184db",
-              marginTop: 20,
-              marginBottom: 20,
-              color: "white",
-              marginLeft: 10,
-            }}
-            color="primary"
-          >
-            Exporter au format XLSX
-          </Button>
-        }
-      >
-        <ExcelSheet data={csvDetection} name="Detections">
-          <ExcelColumn label="ID DAG" value="sensorid" />
-          <ExcelColumn label="Type DAG" value="sensorType" />
-          <ExcelColumn label="latitude" value="latitude" />
-          <ExcelColumn label="longitude" value="longitude" />
-          <ExcelColumn label="Qualité" value="quality" />
-          <ExcelColumn label="Remplissage" value="filling" />
-          <ExcelColumn label="Anomalie" value="anomaly" />
-          <ExcelColumn label="Date" value="date" />
-        </ExcelSheet>
-        <ExcelSheet data={csvInfo} name="Infos">
-          <ExcelColumn label="ID Tournée" value="id" />
-          <ExcelColumn label="Nb Bacs" value="nbBacs" />
-          <ExcelColumn label="Début" value="debut" />
-          <ExcelColumn label="Fin" value="fin" />
-          <ExcelColumn label="Poids" value="poids" />
-          <ExcelColumn label="Durée" value="duree" />
-        </ExcelSheet>
-      </ExcelFile>
+      {inProgress && (
+        <p style={{ display: "flex", justifyContent: "center" }}>
+          Une tournée est actuellement en cours...
+        </p>
+      )}
     </Container>
   );
 }
