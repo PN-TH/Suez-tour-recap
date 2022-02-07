@@ -157,6 +157,7 @@ export default function CustomizedTables() {
         }
       )
       .then((res) => {
+        console.log(res.data);
         if (res.data[0].fin === null && data.debut !== null) {
           setInProgress(true);
         } else {
@@ -182,11 +183,11 @@ export default function CustomizedTables() {
             client: item["Client"],
             provenance: item["Provenance"],
             batiment: item["Bâtiment"],
-            producteur: "",
+            producteur: item["Producteur"],
             nomDechet: item["Type de déchets"],
-            categorieDechet: item["Type de déchet"],
+            categorieDechet: item["Catégorie de déchets"],
             typeContenant: item["Contenant"],
-            volumeContenant: "",
+            volumeContenant: item["Volume Contenant"],
             tournee: item["Tournée"],
             qualiteTri: useQualityExportStatus(
               parseInt(item.samples[0]["quality"])
@@ -194,10 +195,7 @@ export default function CustomizedTables() {
             tauxRemplissage: useFillingRateExportStatus(
               parseInt(item.samples[0]["filling"])
             ),
-            anomaly:
-              item.samples["anomaly"] && item.samples[0]["anomaly"] !== "null"
-                ? item.samples["anomaly"]
-                : "",
+            anomaly: item.samples[0]["anomaly"],
             latitude: item.samples[0]["latitude"],
             longitude: item.samples[0]["longitude"],
           });
